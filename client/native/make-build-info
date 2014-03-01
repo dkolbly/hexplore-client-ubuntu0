@@ -1,0 +1,8 @@
+#! /bin/bash
+
+echo "const char *build_date = \"$(date +"%Y-%m-%d %H:%M:%S")\";"
+echo "const char *build_source_rev = \"$(git rev-parse HEAD)\";"
+if test -f .version
+then echo "const char *build_version = \"$(< .version)\";"
+else echo "const char *build_version = \"unknown\";"
+fi
