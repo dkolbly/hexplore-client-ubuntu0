@@ -1,10 +1,4 @@
 Fixed cleanup process to be more complete
-Index: hexplore-client-0.3.0/.git/index
-===================================================================
---- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ hexplore-client-0.3.0/.git/index	2014-03-01 08:22:40.815222815 -0600
-@@ -0,0 +1 @@
-+eee671ba8341f77845cd91c8580c8215bd0dbeb6
 Index: hexplore-client-0.3.0/Makefile
 ===================================================================
 --- hexplore-client-0.3.0.orig/Makefile	2014-03-01 07:30:11.000000000 -0600
