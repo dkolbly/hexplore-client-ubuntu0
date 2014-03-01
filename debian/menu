@@ -1,0 +1,2 @@
+?package(hexplore-client):needs="X11|text|vc|wm" section="Applications/Games"\
+  title="hexplore" command="/usr/bin/hexplore"

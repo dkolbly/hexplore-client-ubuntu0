@@ -1,0 +1,7 @@
+hexplore-client for Debian
+--------------------------
+
+The upstream source is currently unified (client/server) and does not
+contain a Makefile.  We add that here.
+
+ -- Donovan Kolbly <donovan@rscheme.org>  Sat, 01 Mar 2014 06:00:58 -0600
