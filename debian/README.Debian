@@ -7,6 +7,13 @@ contain a Makefile.  We add that here.
 Furthermore, the stars must be in perfect alignment in order for
 everything to work.
 
+The ~/.devscripts should contain a mention of the gpg key used to
+sign, such as:
+
+DEBSIGN_KEYID=5DA3C470B1CB79CA
+
+Note that setting this in the environment has no effect
+
 This packaging is set up to use git-buildpackage.  Specific workflow
 use cases are articulated here.
 
