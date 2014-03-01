@@ -27,7 +27,7 @@ debian packaging
 +	make -C client/native
 +
 +DESTDIR=
-+BIN=$(DESTDIR)/usr/bin
++BIN=$(DESTDIR)/usr/games
 +VAR=$(DESTDIR)/var/games
 +SHARE=$(DESTDIR)/usr/share/games
 +
