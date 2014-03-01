@@ -1,0 +1,24 @@
+Description: Added missing file to pick up upstream rev instead of ours
+ .
+ hexplore-client (0.3.0-1) unstable; urgency=low
+ .
+   * Initial release
+Author: Donovan Kolbly <donovan@rscheme.org>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- /dev/null
++++ hexplore-client-0.3.0/upstream_source_rev
+@@ -0,0 +1 @@
++eee671ba8341f77845cd91c8580c8215bd0dbeb6
