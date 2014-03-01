@@ -1,3 +1,9 @@
+hexplore-client (0.3.0-2) saucy; urgency=low
+
+  * Updates to packaging
+
+ -- Donovan Kolbly <donovan@rscheme.org>  Sat, 01 Mar 2014 17:22:50 -0600
+
 hexplore-client (0.3.0-1) saucy; urgency=low
 
   * Initial release
