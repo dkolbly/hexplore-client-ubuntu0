@@ -2,7 +2,7 @@ Adding top-level Makefile to lay out files for
 debian packaging
 --- /dev/null
 +++ b/Makefile
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,39 @@
 +PROTOS=server/wire/hello.proto \
 +	server/wire/terrain.proto \
 +	server/wire/entity.proto \
@@ -24,6 +24,7 @@ debian packaging
 +	make -C hexcom
 +
 +client/native/hc:
++	env
 +	make -C client/native
 +
 +DESTDIR=
@@ -41,26 +42,3 @@ debian packaging
 +	rm -rf server/src/.out
 +	rm -rf client/native/.out client/native/hc
 +	rm -rf .out
---- a/client/native/Makefile
-+++ b/client/native/Makefile
-@@ -54,7 +54,7 @@
- 	g++ $(CFLAGS) -MD -c $< -o $@
- 
- clean::
--	rm -rf $(OUT) hc
-+	rm -rf $(OUT) hc orbit
- 
- 
- -include $(OUT)/*.d
---- a/hexcom/Makefile
-+++ b/hexcom/Makefile
-@@ -18,6 +18,9 @@
- 
- clean::
- 	rm -f $(OFILES)
-+	rm -f *.d
-+	rm -f libhexcom.a
-+
- 
- -include *.d
- 
