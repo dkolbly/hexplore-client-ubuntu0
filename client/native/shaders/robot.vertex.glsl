@@ -1,8 +1,8 @@
-#version 130            // --*-c-*--
+#version 120            // --*-c-*--
 
-in vec3 vertexPosition_modelspace;
-in vec2 vertexUV;
-in float vertexAmbient;
+attribute vec3 vertexPosition_modelspace;
+attribute vec2 vertexUV;
+attribute float vertexAmbient;
 // WIP in vec3 vertexNormal;
 
 // we are just sending along the color info to the fragment
@@ -10,8 +10,8 @@ in float vertexAmbient;
 // from vertices to fragments it gets interpolated (automatically?)
 //out vec4 fragmentColor; 
 
-out vec2 fragmentUV;
-out float fragmentAmbient;
+varying vec2 fragmentUV;
+varying float fragmentAmbient;
 
 // constant for the entire mesh
 uniform mat4 MVP;

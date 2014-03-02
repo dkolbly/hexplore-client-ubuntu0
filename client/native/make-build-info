@@ -2,6 +2,7 @@
 
 import subprocess
 import re
+import os
 import os.path
 import time
 
@@ -23,7 +24,15 @@ def debian_version():
         p.wait()
         ver = re.search(r"Version:\s+([^\s]+)$", data, re.MULTILINE)
         ver = ver.group(1)
-        src = re.search(r"commit\s+([0-9a-f]{40})", data, re.MULTILINE)
+        # Rescan from the beginning of this upstream version, since
+        # multiple packaging-layer changes may have happened and the
+        # commit message is most likely on the first one
+        upver = ver.split('-')[0]
+        p = subprocess.Popen(["dpkg-parsechangelog", "-f%s" % upver],
+                             cwd=TOP,
+                             stdout=subprocess.PIPE)
+        data2 = p.stdout.read()
+        src = re.search(r"commit\s+([0-9a-f]{40})", data2, re.MULTILINE)
         # If we are running in Jenkins, append the Jenkins build #
         if 'BUILD_NUMBER' in os.environ:
             ver += "." + os.environ['BUILD_NUMBER']
@@ -61,3 +70,4 @@ def main():
 
 main()
 
+#   User agent "hexplore/native 0.3.2-2 2014-03-02T05:15:33Z unknown"
