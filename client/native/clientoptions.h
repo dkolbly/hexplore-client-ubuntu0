@@ -12,6 +12,8 @@ struct ClientOptions {
 
   unsigned override;
   std::string configfile;
+  // NOTE: We chdir() to homedir at startup, so all file operations
+  //       should be relative to the homedir
   std::string homedir;
   std::string username;
   std::string playername;

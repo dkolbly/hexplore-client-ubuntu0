@@ -69,7 +69,7 @@ BIN=$(DESTDIR)/bin
 ASSETDIR=$(DESTDIR)
 
 TEXTURES=terrain.png toolsel.png toolbar.png turtle.png galaxy.dat 8x8font.png
-SHADERS=simple water skybox robot outline
+SHADERS=terrain water skybox robot outline
 
 INSTALLED_TEXTURES=$(patsubst %,$(ASSETDIR)/textures/%,$(TEXTURES))
 INSTALLED_FRAG_SHADERS=$(patsubst %,$(ASSETDIR)/shaders/%.frag.glsl,$(SHADERS))
