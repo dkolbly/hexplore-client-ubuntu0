@@ -12,6 +12,7 @@ struct ClientOptions {
 
   unsigned override;
   std::string configfile;
+  std::string homedir;
   std::string username;
   std::string playername;
   std::string server_host;

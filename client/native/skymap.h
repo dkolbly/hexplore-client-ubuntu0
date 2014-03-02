@@ -3,6 +3,7 @@
 
 #include <GL/gl.h>
 #include <glm/glm.hpp>
+#include "clientoptions.h"
 
 struct SkyView {
   glm::vec3     location;
@@ -17,6 +18,6 @@ struct SkyView {
   void update(glm::dvec3 const& posn, double solar_time);
 };
 
-GLuint ui_skymap_create(double solar_time);
+GLuint ui_skymap_create(ClientOptions const& opt, double solar_time);
 
 #endif /* _H_HEXPLORE_CLIENT_SKYMAP */

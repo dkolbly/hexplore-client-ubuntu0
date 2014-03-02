@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <hexcom/pick.h>
 #include <hexcom/curve.h>
+#include <hexcom/picture.h>
 
 #include "connection.h"
 #include "world.h"
@@ -18,9 +19,9 @@
 #include "sound.h"
 #include "animus.h"
 #include "skymap.h"
+#include "clientoptions.h"
 
 struct UserInterface;
-typedef struct _TTF_Font TTF_Font;
 
 typedef std::unordered_map<std::string,wire::entity::EntityType*> EntityTypeMap;
 
@@ -114,7 +115,7 @@ struct TerrainSection {
  */
 
 struct UserInterface {
-  UserInterface();
+  UserInterface(ClientOptions const& opt);
 
   EntityMap     entities;
   EntityTypeMap etypes;
@@ -141,7 +142,7 @@ struct UserInterface {
   SDL_Renderer *status_renderer;
   
   SDL_Texture *popupTexture;
-  TTF_Font *popupFont;
+  Picture *popupFont;
   struct OverlayWindow  *toolPopup;
   struct OverlayWindow  *toolPopupSel;
 

@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <jsoncpp/json/json.h>
 
+extern const char *build_default_home;
+
 enum {
   OVERRIDE_USERNAME = (1<<0),
   OVERRIDE_PLAYERNAME = (1<<1),
@@ -16,7 +18,10 @@ enum {
 bool ClientOptions::parseCommandLine(int argc, char *argv[])
 {
   while (1) {
-    switch(getopt(argc, argv, "DP:h:u:p:")) {
+    switch(getopt(argc, argv, "DP:h:u:p:d:")) {
+    case 'd':
+      homedir = optarg;
+      break;
     case 'D':
       debug_animus = fopen("/tmp/animus-debug.out","w");
       break;
@@ -48,6 +53,7 @@ bool ClientOptions::parseCommandLine(int argc, char *argv[])
 ClientOptions::ClientOptions()
   : override(0),
     configfile(std::string(getenv("HOME"))+"/.hexplore/local.conf"),
+    homedir(build_default_home),
     username("anonymous"),
     playername("^0"),
     server_host("localhost"),
@@ -92,6 +98,19 @@ bool ClientOptions::parseConfigFile()
 
 bool ClientOptions::validate()
 {
+  struct stat sb;
+
+  if (stat(homedir.c_str(), &sb) < 0) {
+    fprintf(stderr, "%s: hexplore home directory does not exist\n",
+            homedir.c_str());
+    return false;
+  }
+  if (!S_ISDIR(sb.st_mode)) {
+    fprintf(stderr, "%s: hexplore home is not a directory\n",
+            homedir.c_str());
+    return false;
+  }
+
   /*
   if (!username) {
     struct passwd *p = getpwuid(getuid());

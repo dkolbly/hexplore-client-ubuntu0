@@ -28,8 +28,7 @@ PROTO_SOURCES=\
    $(SERVER_OUT_DIR)/wire/major.pb.cc
 
 OBJ_FILES=$(patsubst %.cpp,$(OUT)/%.o,$(CPP_SOURCES)) \
-	  $(patsubst $(SERVER_OUT_DIR)/wire/%.cc,$(OUT)/wire/%.o,$(PROTO_SOURCES)) \
-	$(OUT)/build.o
+	  $(patsubst $(SERVER_OUT_DIR)/wire/%.cc,$(OUT)/wire/%.o,$(PROTO_SOURCES))
 PROTO_H_FILES=$(patsubst $(SERVER_OUT_DIR)/wire/%.cc,$(SERVER_OUT_DIR)/wire/%.h,$(PROTO_SOURCES))
 
 #sp: sound.cpp
@@ -39,7 +38,8 @@ PROTO_H_FILES=$(patsubst $(SERVER_OUT_DIR)/wire/%.cc,$(SERVER_OUT_DIR)/wire/%.h,
 #	g++ merge-sort-stack.cpp -o mss
 
 hc: $(OBJ_FILES)
-	g++ $(OBJ_FILES) -o hc $(LFLAGS)
+	./make-build-info > $(OUT)/build.cpp
+	g++ $(OBJ_FILES) $(OUT)/build.cpp -o hc $(LFLAGS)
 
 orbit: orbits.cpp
 	g++ $(CFLAGS) orbits.cpp $(SERVER_OUT_DIR)/wire/terrain.pb.cc -o orbit $(LFLAGS)
@@ -53,15 +53,45 @@ $(OUT)/wire/%.o: $(SERVER_OUT_DIR)/wire/%.cc
 	@mkdir -p $(OUT)/wire
 	g++ $(CFLAGS) -MD -c $< -o $@
 
-$(OUT)/build.c: .version ../../.git/index
-	@mkdir -p $(OUT)
-	./make-build-info > $(OUT)/build.c
-
-$(OUT)/build.o: $(OUT)/build.c
-	g++ -c $(OUT)/build.c -o $(OUT)/build.o
-
 clean::
-	rm -rf $(OUT)
+	rm -rf $(OUT) hc
+
 
 -include $(OUT)/*.d
 -include $(OUT)/wire/*.d
+
+#
+#  Install support; adapted from Debian packaging
+#
+
+DESTDIR=
+BIN=$(DESTDIR)/bin
+ASSETDIR=$(DESTDIR)
+
+TEXTURES=terrain.png toolsel.png toolbar.png turtle.png galaxy.dat 8x8font.png
+SHADERS=simple water skybox robot outline
+
+INSTALLED_TEXTURES=$(patsubst %,$(ASSETDIR)/textures/%,$(TEXTURES))
+INSTALLED_FRAG_SHADERS=$(patsubst %,$(ASSETDIR)/shaders/%.frag.glsl,$(SHADERS))
+INSTALLED_VERTEX_SHADERS=$(patsubst %,$(ASSETDIR)/shaders/%.vertex.glsl,$(SHADERS))
+
+install:: $(BIN)/hexplore \
+	$(INSTALLED_TEXTURES) \
+	$(INSTALLED_FRAG_SHADERS) \
+	$(INSTALLED_VERTEX_SHADERS)
+
+$(BIN)/hexplore: hc
+	install --strip -m 0755 -D hc $(BIN)/hexplore
+
+$(ASSETDIR)/textures/%.png: textures/%.png
+	install -m 0644 -D $< $@
+
+$(ASSETDIR)/textures/%.dat: textures/%.dat.gz
+	@mkdir -p $(ASSETDIR)/textures
+	gunzip -d < $< > $@
+
+$(ASSETDIR)/shaders/%.glsl: shaders/%.glsl
+	install -m 0644 -D $< $@
+
+textures/%.png: textures/%.xcf
+	xcf2png $< -o $@

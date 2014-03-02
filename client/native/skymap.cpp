@@ -61,7 +61,7 @@ static const ColorProfile dawn(sunset_orange,
                                sunset_black,
                                sunset_black);
 
-GLuint ui_skymap_create(double solar_time)
+GLuint ui_skymap_create(ClientOptions const& opt, double solar_time)
 {
   glEnable(GL_TEXTURE_CUBE_MAP);
   //glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
