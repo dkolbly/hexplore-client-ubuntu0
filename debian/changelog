@@ -1,4 +1,4 @@
-hexplore-client (0.3.3-1) saucy; urgency=low
+hexplore-client (0.3.3b-1) saucy; urgency=low
 
   * Incorporated new upstream release 0.3.3 with 1.3->1.2 port of
     remaining shaders
