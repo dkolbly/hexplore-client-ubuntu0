@@ -89,7 +89,7 @@ GLuint ui_skymap_create(ClientOptions const& opt, double solar_time)
   glm::vec3 home_planet_in_galaxy(10000, 30000, 9000);
 
   // load stars
-  FILE *starf = fopen("galaxy.dat", "r");
+  FILE *starf = fopen("textures/galaxy.dat", "r");
   if (starf) {
     // load stars
     char line[100];
