@@ -2,7 +2,7 @@ Adding top-level Makefile to lay out files for
 debian packaging
 --- /dev/null
 +++ b/Makefile
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,38 @@
 +PROTOS=server/wire/hello.proto \
 +	server/wire/terrain.proto \
 +	server/wire/entity.proto \
@@ -31,27 +31,36 @@ debian packaging
 +VAR=$(DESTDIR)/var/games
 +SHARE=$(DESTDIR)/usr/share/games
 +
-+TEXTURES=terrain.png toolsel.png toolbar.png
-+SHADERS=simple water skybox robot
++install::
++	@mkdir -p $(BIN) $(SHARE)
++	make -C client/native BIN=`readlink -f $(BIN)` ASSETDIR=`readlink -f $(SHARE)` \
++		install
 +
-+INSTALLED_TEXTURES=$(patsubst %.png,$(SHARE)/hexplore/textures/%.png,$(TEXTURES))
-+INSTALLED_FRAG_SHADERS=$(patsubst %,$(SHARE)/hexplore/shaders/%.frag.glsl,$(SHADERS))
-+INSTALLED_VERTEX_SHADERS=$(patsubst %,$(SHARE)/hexplore/shaders/%.vertex.glsl,$(SHADERS))
++clean::
++	make -C hexcom clean
++	rm -rf server/src/.out
++	rm -rf client/native/.out client/native/hc
++	rm -rf .out
+--- a/client/native/Makefile
++++ b/client/native/Makefile
+@@ -54,7 +54,7 @@
+ 	g++ $(CFLAGS) -MD -c $< -o $@
+ 
+ clean::
+-	rm -rf $(OUT) hc
++	rm -rf $(OUT) hc orbit
+ 
+ 
+ -include $(OUT)/*.d
+--- a/hexcom/Makefile
++++ b/hexcom/Makefile
+@@ -18,6 +18,9 @@
+ 
+ clean::
+ 	rm -f $(OFILES)
++	rm -f *.d
++	rm -f libhexcom.a
 +
-+
-+install:: $(BIN)/hexplore \
-+	$(INSTALLED_TEXTURES) \
-+	$(INSTALLED_FRAG_SHADERS) \
-+	$(INSTALLED_VERTEX_SHADERS)
-+
-+$(BIN)/hexplore: client/native/hc
-+	install --strip -m 0755 -D client/native/hc $(BIN)/hexplore
-+
-+$(SHARE)/hexplore/textures/%.png: client/native/textures/%.png
-+	install -m 0644 -D $< $@
-+
-+$(SHARE)/hexplore/shaders/%.glsl: client/native/shaders/%.glsl
-+	install -m 0644 -D $< $@
-+
-+client/native/textures/%.png: client/native/textures/%.xcf
-+	xcf2png $< -o $@
+ 
+ -include *.d
+ 
