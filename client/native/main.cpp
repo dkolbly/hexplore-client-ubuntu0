@@ -2882,8 +2882,8 @@ UserInterface::UserInterface(ClientOptions const& opt)
 
   struct ShaderRef sr;
 
-  sr.shaderId = load_shader_program("shaders/simple.vertex.glsl",
-                                    "shaders/simple.frag.glsl");
+  sr.shaderId = load_shader_program("shaders/terrain.vertex.glsl",
+                                    "shaders/terrain.frag.glsl");
   sr.shaderPgmMVPMatrixIndex = glGetUniformLocation(sr.shaderId, "MVP");
   sr.shaderPgmTextureIndex = glGetUniformLocation(sr.shaderId, "theTextureSampler");
   sr.fogColorIndex = glGetUniformLocation(sr.shaderId, "fogColor");

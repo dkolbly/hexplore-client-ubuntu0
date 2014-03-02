@@ -1,8 +1,8 @@
-#version 130            // --*-c-*--
+#version 120            // --*-c-*--
 
-in vec3 vertexPosition_modelspace;
+attribute vec3 vertexPosition_modelspace;
 
-out float fragmentAmbient;
+varying float fragmentAmbient;
 
 // constant for the entire mesh
 uniform mat4 MVP;
