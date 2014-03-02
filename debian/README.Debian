@@ -30,7 +30,7 @@ Pulling in new Upstream Sources
 -------------------------------
 First, we have to *get* the upstream sources
 
-VERSION=0.3.1
+VERSION=$(< version)
 git archive HEAD --prefix hexplore-client-${VERSION}/ -o /tmp/hexplore-client-${VERSION}_$(git rev-parse HEAD).tar.gz hexcom server/wire client
 
 Then, we can slurp them in:
@@ -75,7 +75,7 @@ and tag a new build.
 
   3. git commit -m"..."
 
-  4. git-buildpackage --tag
+  4. git-buildpackage --git-tag
 
   5. git push
 

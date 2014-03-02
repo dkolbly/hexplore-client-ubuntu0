@@ -4,7 +4,7 @@ Priority: extra
 Maintainer: Donovan Kolbly <donovan@rscheme.org>
 Build-Depends: debhelper (>= 9.0.0), libsdl2-dev, libglm-dev, libpng-dev, libprotobuf-dev, protobuf-compiler, libjsoncpp-dev, xcftools
 Standards-Version: 3.9.4
-Homepage: http://www.hexplore.com/
+Homepage: http://hexplore.rscheme.org/
 #Vcs-Git: git://git.debian.org/collab-maint/hexplore-client.git
 #Vcs-Browser: http://git.debian.org/?p=collab-maint/hexplore-client.git;a=summary
 

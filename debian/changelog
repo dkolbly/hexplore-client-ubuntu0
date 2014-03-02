@@ -8,7 +8,7 @@ hexplore-client (0.3.2-2) saucy; urgency=low
 hexplore-client (0.3.2-1) saucy; urgency=low
 
   * Incorporated new upstream release 0.3.2
-  * upstream commit 2ac12f516c62369c6df28818fb65dc1
+  * upstream commit 2ac12f516c62369c6df28818fb65dc156804c738
 
  -- Donovan Kolbly <donovan@rscheme.org>  Sat, 01 Mar 2014 21:15:27 -0600
 
