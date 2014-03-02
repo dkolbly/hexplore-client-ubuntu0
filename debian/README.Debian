@@ -67,11 +67,19 @@ Finalizing Changes for a Release Build
 Here we need to check in everything within this git repo and cut
 and tag a new build.
 
-  1. dch --version=$(debian/bumpversion)                ; same upstream rev
+  1. dch -v $(debian/bumpversion)                ; same upstream rev
                 --or--
-     dch --version=$(debian/bumpversion -u ${VERSION})  ; new upstream rev
+     dch -v $(debian/bumpversion -u ${VERSION})  ; new upstream rev
 
   2. git add -u 
+
+  3. git commit -m"..."
+
+  4. git-buildpackage --tag
+
+  5. git push
+
+  6. git push --tags
 
 My dquilt is aliased like so (this borrows heavily from
 http://www.debian.org/doc/manuals/maint-guide/modify.en.html)

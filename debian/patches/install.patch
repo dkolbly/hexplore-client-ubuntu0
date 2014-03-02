@@ -29,7 +29,7 @@ debian packaging
 +DESTDIR=
 +BIN=$(DESTDIR)/usr/games
 +VAR=$(DESTDIR)/var/games
-+SHARE=$(DESTDIR)/usr/share/games
++SHARE=$(DESTDIR)/usr/share/games/hexplore
 +
 +install::
 +	@mkdir -p $(BIN) $(SHARE)

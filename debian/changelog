@@ -1,3 +1,10 @@
+hexplore-client (0.3.2-2) saucy; urgency=low
+
+  * Asset files are in wrong directory, should be /usr/share/games/hexplore
+    and they were winding up in /usr/share/games
+
+ -- Donovan Kolbly <donovan@rscheme.org>  Sat, 01 Mar 2014 23:08:19 -0600
+
 hexplore-client (0.3.2-1) saucy; urgency=low
 
   * Incorporated new upstream release 0.3.2
