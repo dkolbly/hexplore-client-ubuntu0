@@ -65,16 +65,11 @@ Picture *Picture::load_png(const char *path)
   png_set_sig_bytes(png_ptr, n);
 
   // libpng12 (ubuntu 13.10) does not have PNG_TRANSFORM_{SCALE,EXPAND}_16 
-#ifndef PNG_TRANSFORM_SCALE_16
-#define PNG_TRANSFORM_SCALE_16 0
-#endif
-#ifndef PNG_TRANSFORM_EXPAND_16
-#define PNG_TRANSFORM_EXPAND_16 0
-#endif
+  // so we implement it ourselves
   png_read_png(png_ptr, info, 
-               PNG_TRANSFORM_GRAY_TO_RGB
-               | PNG_TRANSFORM_EXPAND_16
-               | PNG_TRANSFORM_SCALE_16,
+               PNG_TRANSFORM_EXPAND
+               | PNG_TRANSFORM_BGR
+               | PNG_TRANSFORM_GRAY_TO_RGB,
                NULL);
   printf("read it all\n");
   png_uint_32 width, height;
@@ -94,6 +89,10 @@ Picture *Picture::load_png(const char *path)
   printf("%s: %u x %u (%d bits)\n", path, width, height, bit_depth);
   printf("    mode=%d (%s)\n", color_type, (color_type & PNG_COLOR_MASK_ALPHA) ? "has alpha" : "no alpha");
 
+  if (!((bit_depth == 8) || (bit_depth == 16))) {
+    abort();
+  }
+
   unsigned char **rows = png_get_rows(png_ptr, info);
   unsigned pixels = width*height;
   uint16_t *data = (uint16_t *)malloc(sizeof(uint16_t)*4*pixels);
@@ -102,27 +101,44 @@ Picture *Picture::load_png(const char *path)
   uint16_t *blue_plane = &data[2*pixels];
   uint16_t *alpha_plane = &data[3*pixels];
 
-  unsigned i = 0;
-  for (unsigned y=0; y<height; y++) {
-    uint16_t *r = (uint16_t *)rows[y];
-    //printf("%2d: ", y);
-    for (unsigned x=0; x<width; x++) {
-      if (color_type & PNG_COLOR_MASK_ALPHA) {
-        //printf("%4x,%4x,%4x,%4x ", r[4*x+0], r[4*x+1], r[4*x+2], r[4*x+3]);
-        red_plane[i] = r[4*x+0];
-        green_plane[i] = r[4*x+1];
-        blue_plane[i] = r[4*x+2];
-        alpha_plane[i] = r[4*x+3];
-      } else {
-        //printf("%4x,%4x,%4x ", r[3*x+0], r[3*x+1], r[3*x+2]);
-        red_plane[i] = r[3*x+0];
-        green_plane[i] = r[3*x+1];
-        blue_plane[i] = r[3*x+2];
-        alpha_plane[i] = 0xFFFF;
+  if (bit_depth == 8) {
+    unsigned i = 0;
+    for (unsigned y=0; y<height; y++) {
+      uint8_t *r = (uint8_t *)rows[y];
+      for (unsigned x=0; x<width; x++) {
+        if (color_type & PNG_COLOR_MASK_ALPHA) {
+          blue_plane[i] = r[4*x+0] * 0x101;
+          green_plane[i] = r[4*x+1] * 0x101;
+          red_plane[i] = r[4*x+2] * 0x101;
+          alpha_plane[i] = r[4*x+3] * 0x101;
+        } else {
+          blue_plane[i] = r[3*x+0] * 0x101;
+          green_plane[i] = r[3*x+1] * 0x101;
+          red_plane[i] = r[3*x+2] * 0x101;
+          alpha_plane[i] = 0xFFFF;
+        }
+        i++;
       }
-      i++;
     }
-    //printf("\n");
+  } else {
+    unsigned i = 0;
+    for (unsigned y=0; y<height; y++) {
+      uint16_t *r = (uint16_t *)rows[y];
+      for (unsigned x=0; x<width; x++) {
+        if (color_type & PNG_COLOR_MASK_ALPHA) {
+          red_plane[i] = r[4*x+0];
+          green_plane[i] = r[4*x+1];
+          blue_plane[i] = r[4*x+2];
+          alpha_plane[i] = r[4*x+3];
+        } else {
+          red_plane[i] = r[3*x+0];
+          green_plane[i] = r[3*x+1];
+          blue_plane[i] = r[3*x+2];
+          alpha_plane[i] = 0xFFFF;
+        }
+        i++;
+      }
+    }
   }
 
   png_destroy_read_struct(&png_ptr, &info, NULL);

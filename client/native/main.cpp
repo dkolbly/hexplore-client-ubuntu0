@@ -86,8 +86,8 @@ static const Posture posture_info[3] = {
 #define CROUCH_SPEED                    (4.0)
 #define STANDUP_SPEED                   (CROUCH_SPEED*1.5)
 
-#define TEXT_POPUP_W  600
-#define TEXT_POPUP_H  40
+#define TEXT_POPUP_W  (8*80)
+#define TEXT_POPUP_H  (8*2)
 
 unsigned keymap[] = {
   SDL_SCANCODE_W,
@@ -257,16 +257,22 @@ void ui_popup_draw(UserInterface *ui)
   //SDL_GL_MakeCurrent(ui->window, ui->glcontext);
   //SDL_RenderCopy(ui->renderer, ui->popupTexture, NULL, NULL);
 
+  int window_w, window_h;
+  SDL_GetWindowSize(ui->window, &window_w, &window_h);
+
   float texw, texh;
   SDL_GL_BindTexture(ui->popupTexture, &texw, &texh);
 
   struct { double x, y, z; } vertex_coords[6];
   struct { double u, v; } texture_coords[6];
 
+  double screen_horz_rez = 2.0 / window_w;
+  double screen_vert_rez = 2.0 / window_h;
+
   double x0 = -0.75f;
   double y0 = -0.8f;
-  double x1 = 0.75f;
-  double y1 = -0.7f;
+  double x1 = x0 + screen_horz_rez * TEXT_POPUP_W * 2;
+  double y1 = y0 + screen_vert_rez * TEXT_POPUP_H * 2;
 
   vertex_coords[0].x = x0;
   vertex_coords[0].y = y1;
@@ -382,6 +388,79 @@ OverlayWindow *ui_load_overlay(UserInterface *ui,
   return w;
 }
 
+struct LockedTexture {
+  SDL_Texture *tex;
+  void *pixels;
+  int pitch;
+  unsigned pitch_words;
+  unsigned width;
+  unsigned height;
+  LockedTexture(SDL_Texture *texture, unsigned w, unsigned h) 
+    : tex(NULL),
+      pixels(NULL),
+      width(w),
+      height(h)
+  {
+    if (SDL_LockTexture(texture, NULL, &pixels, &pitch) < 0) {
+      SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                   "Couldn't lock texture: %s\n", 
+                   SDL_GetError());
+      return;
+    }
+    pitch_words = pitch / sizeof(uint32_t);
+    /*printf("Locked texture at %p for %u x %u ; pitch %d\n", 
+           pixels,
+           width, height,
+           pitch);*/
+    tex = texture;
+  }
+  bool valid() {
+    return (pixels != NULL);
+  }
+          
+  ~LockedTexture() {
+    if (tex) {
+      SDL_UnlockTexture(tex);
+    }
+  }
+
+  // color format is SDL_PIXELFORMAT_ARGB8888
+  void put_pixel(unsigned x, unsigned y, uint32_t color) const {
+    if ((x >= width) || (y >= width)) {
+      // clip outside the texture
+      return;
+    }
+    size_t k = x + y * pitch_words;
+    ((uint32_t*)pixels)[k] = color;
+  }
+
+};
+
+int ui_drawtext(UserInterface *ui,
+                LockedTexture const& tex,
+                int x, int y,
+                std::string const& str)
+{
+  Picture *font = ui->popupFont;
+  uint16_t *red = font->red_plane();
+  unsigned stride = font->width;
+
+  for (size_t i=0; i<str.size(); i++) {
+    uint8_t ch = str[i];
+    for (int dy=0; dy<8; dy++) {
+      for (int dx=0; dx<8; dx++) {
+        if (red[dx + ch * 8 + dy * stride] < 0x8000) {
+          tex.put_pixel(x + dx + i*8,
+                        y + dy,
+                        0xFF000000);
+        }
+      }
+    }
+  }
+  return 0;
+}
+
+
 void ui_popup_update(UserInterface *ui)
 {
   if (!ui->inputbox.dirty) {
@@ -395,8 +474,9 @@ void ui_popup_update(UserInterface *ui)
   void *pixels;
   int pitch;
 
+  LockedTexture ltex(texture, TEXT_POPUP_W, TEXT_POPUP_H);
+
   if (SDL_LockTexture(texture, NULL, &pixels, &pitch) < 0) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't lock texture: %s\n", SDL_GetError());
     return;
   }
   for (row = 0; row < TEXT_POPUP_H; ++row) {
@@ -411,47 +491,8 @@ void ui_popup_update(UserInterface *ui)
     }
   }
 
-  SDL_Color fg = {0,0,0};
-  //SDL_Color bg = {1,1,1};
+  ui_drawtext(ui, ltex, 0, 0, ui->inputbox.text);
   
-#if HAVE_SDL2_TTF
-  SDL_Surface *x = TTF_RenderText_Solid(ui->popupFont, ui->inputbox.text.c_str(), fg);
-  if (x) {
-    std::string prefix = ui->inputbox.text;
-    prefix.erase(ui->inputbox.cursor, std::string::npos);
-    int cursor_w, cursor_h;
-    TTF_SizeText(ui->popupFont, prefix.c_str(), &cursor_w, &cursor_h);
-
-    //printf("text produced %d x %d pixels (fmt=%#x)\n", x->w, x->h, x->format->format);
-    SDL_Surface *tmp = SDL_CreateRGBSurface(0, TEXT_POPUP_W, TEXT_POPUP_H, 32,
-                                            (0xFF<<16), (0xFF<<8), (0xFF<<0), (0xFF<<24));
-    //SDL_FillRect(tmp, NULL, SDL_MapRGBA(tmp->format, 128, 128, 0, 128));
-    SDL_Rect cursor;
-    cursor.x = cursor_w;
-    cursor.y = 3;
-    cursor.w = 3;
-    cursor.h = 24;
-
-    SDL_BlitSurface(x, NULL, tmp, NULL);
-    SDL_FillRect(tmp, &cursor, SDL_MapRGBA(tmp->format, 128, 128, 128, 255));
-    
-    for (row = 0; row < TEXT_POPUP_H; ++row) {
-      Uint32 *dst = (Uint32*)((Uint8*)pixels + row * pitch);
-      Uint32 *src = (Uint32*)((Uint8*)tmp->pixels + row * tmp->pitch);
-      for (col = 0; col < TEXT_POPUP_W; ++col) {
-        if (src[col] & 0xFF000000) {
-          dst[col] = src[col];
-        }
-      }
-    }
-    SDL_FreeSurface(tmp);
-    SDL_FreeSurface(x);
-  } else {
-    printf("render text error\n");
-  }
-#endif
-
-  SDL_UnlockTexture(texture);
 }
 
 Animus::~Animus()
@@ -1678,49 +1719,12 @@ GLuint ui_load_texture(const wire::model::Image *img)
   return id;
 }
 
-GLuint ui_load_textures(const char *rgb_path, const char *alpha_path)
+GLuint ui_load_textures(const char *png_path)
 {
-  size_t rgb_len;
-  const char *rgb_buf = load_file(rgb_path, &rgb_len);
-  int rgb_mode, rgb_width, rgb_height;
-  if (sscanf(rgb_buf, "P%d\n%d %d\n", &rgb_mode, &rgb_width, &rgb_height) != 3) {
-    fatal("Bad pnm header",rgb_path);
-  }
-  const char *brk;
-  brk = strchr(rgb_buf,'\n')+1;
-  brk = strchr(brk,'\n')+1;
-  brk = strchr(brk,'\n')+1;
-  unsigned char *rgb_data = (unsigned char *)brk;
-
-  if (rgb_mode != 6) {
-    fatal("Unexpected pnm type",rgb_path);
-  }
-  if ((rgb_len - (brk-rgb_buf)) != (size_t)(rgb_width * rgb_height*3)) {
-    fatal("pnm size inconsistent with w*h",rgb_path);
-  }
-    
-  size_t alpha_len;
-  const char *alpha_buf = load_file(alpha_path, &alpha_len);
-  int alpha_mode, alpha_width, alpha_height;
-  if (sscanf(alpha_buf, "P%d\n%d %d\n", &alpha_mode, &alpha_width, &alpha_height) != 3) {
-    fatal("Bad pnm header",rgb_path);
-  }
-  brk = strchr(alpha_buf,'\n')+1;
-  brk = strchr(brk,'\n')+1;
-  brk = strchr(brk,'\n')+1;
-  unsigned char *alpha_data = (unsigned char *)brk;
-
-  if (alpha_mode != 5) {
-    fatal("Unexpected pnm type",alpha_path);
-  }
-  if ((alpha_len - (brk-alpha_buf)) != (size_t)(alpha_width * alpha_height)) {
-    fatal("pnm size inconsistent with w*h",alpha_path);
-  }
-  if (alpha_width != rgb_width) {
-    fatal("rgb/alpha width inconsistent",rgb_path);
-  }
-  if (alpha_height != rgb_height) {
-    fatal("rgb/alpha height inconsistent",rgb_path);
+  Picture *pict = Picture::load_png(png_path);
+  if (!pict) {
+    fprintf(stderr, "%s: Could not load texture\n", png_path);
+    abort();
   }
 
   GLuint id;
@@ -1728,17 +1732,25 @@ GLuint ui_load_textures(const char *rgb_path, const char *alpha_path)
   glBindTexture(GL_TEXTURE_2D, id);
 
   // rearrange the data
-  unsigned char *texdata = (unsigned char *)malloc(rgb_width*rgb_height*4);
-  for (int i=0; i<(rgb_width*rgb_height); i++) {
-    texdata[4*i+0] = rgb_data[i*3+0];
-    texdata[4*i+1] = rgb_data[i*3+1];
-    texdata[4*i+2] = rgb_data[i*3+2];
-    texdata[4*i+3] = alpha_data[i];
+  unsigned w = pict->width;
+  unsigned h = pict->height;
+  unsigned char *texdata = (unsigned char *)malloc(w*h*4);
+  memset(texdata, 0, w*h*4);
+  unsigned char *texdata_ptr = texdata;
+  for (unsigned y=0; y<h; y++) {
+    for (unsigned x=0; x<w; x++) {
+      Pixel p = pict->get_pixel(x, y);
+      texdata_ptr[0] = p.r >> 8;
+      texdata_ptr[1] = p.g >> 8;
+      texdata_ptr[2] = p.b >> 8;
+      texdata_ptr[3] = p.a >> 8;
+      texdata_ptr += 4;
+    }
   }
 
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 
-               rgb_width,
-               rgb_height,
+               w,
+               h,
                0,
                GL_RGBA,
                GL_UNSIGNED_BYTE,
@@ -2800,7 +2812,7 @@ void ui_close(struct UserInterface *ui)
 }
 
 
-UserInterface::UserInterface()
+UserInterface::UserInterface(ClientOptions const& opt)
 {
   frame = 0;
   fpsReport.time = 0;
@@ -2921,13 +2933,11 @@ UserInterface::UserInterface()
   // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
   projectionMatrix = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
 
-  textureId = ui_load_textures("textures/terrain.rgb.pnm",
-                               "textures/terrain.alpha.pnm");
+  textureId = ui_load_textures("textures/terrain.png");
+  cursorTexture = ui_load_textures("textures/turtle.png");
+  popupFont = Picture::load_png("textures/8x8font.png");
 
-  cursorTexture = ui_load_textures("textures/turtle.rgb.pnm",
-                                   "textures/turtle.alpha.pnm");
-
-  cube_map_texture_id = ui_skymap_create(0.0);
+  cube_map_texture_id = ui_skymap_create(opt, 0.0);
   outlineMesh = NULL;
 
   popupTexture = SDL_CreateTexture(renderer,
@@ -2974,6 +2984,14 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  // First thing, change to the home directory
+  // in the default ubuntu build, this is configured as
+  // "/usr/share/games/hexplore"
+  if (chdir(opt.homedir.c_str()) < 0) {
+    perror(opt.homedir.c_str());
+    return 1;
+  }
+
   hop_up = make_hop_curve();
   ClientWorld *w = create_client_world(opt);
   Connection *cnx = connection_make(w, opt);
@@ -2991,12 +3009,7 @@ int main(int argc, char *argv[])
       fatal("SDL_Init", SDL_GetError());
     }
 
-    struct UserInterface *ui = new UserInterface();
-
-#if HAVE_SDL2_TTF
-    TTF_Init();
-    ui->popupFont = TTF_OpenFont("/usr/share/fonts/truetype/droid/DroidSans.ttf", 24);
-#endif
+    struct UserInterface *ui = new UserInterface(opt);
 
     sound_init(ui);
     ui->sounds.boink = sound_load("sounds/boing.wav");
