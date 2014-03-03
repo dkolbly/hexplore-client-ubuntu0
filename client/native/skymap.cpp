@@ -9,7 +9,27 @@ double home_period = 200;                       // year in # of days
 //double galactic_period = home_period*200;       // galactic year in # of days
 double galactic_period = 2;       // galactic year in # of days
 
-#define PI2  (2*PI)
+/**
+ *   This coefficient determines how big the world "appears";
+ *   note that the world is infinite and flat, but as you walk East/West
+ *   your longitude changes.  This determines how fast, and is therefore
+ *   essentially determines the size of a time zone.
+ *
+ *   2*PI is one day's worth of time zone, so if this is set to
+ *   2*PI/1000 then it takes 1000 units in world space (recall the
+ *   x_stride is defined as 1.0, so 1000 units in world space
+ *   corresponds to 1000 hexes in the E/W direction) to go all the
+ *   way around the world.
+ *
+ *   Given the current settings for the length of a day and running
+ *   speed, the value of 30,000 is not quite enough to run as fast
+ *   as the world "turns".
+ */
+
+const float longitude_radians_per_x = 2*M_PI / 30000.0;
+
+
+#define PI2  (2*M_PI)
 
 #define SKYMAP_REZ      (1024)
 
@@ -156,25 +176,9 @@ GLuint ui_skymap_create(ClientOptions const& opt, double solar_time)
         int it = t * (SKYMAP_REZ/2) + SKYMAP_REZ/2;
         if (is < 0) { is = 0; } else if (is >= SKYMAP_REZ) { is = SKYMAP_REZ-1; }
         if (it < 0) { it = 0; } else if (it >= SKYMAP_REZ) { it = SKYMAP_REZ-1; }
-        //printf("star %4d  f%d %2d %2d    %.4f %.4f\n", i, face, ix, iy, dx, dy);
         int brightness = 255;
         int r = brightness, g = brightness, b = brightness;
 
-        /*    if (sx < 0) {
-              r = 255;
-              }
-              if (sy > 0) {
-              g = 255;
-              }*/
-        /*
-          switch(face) {
-          case 0: r=255; break;
-          case 1: r=128; break;
-          case 2: g=255; break;
-          case 3: g=128; break;
-          case 4: b=255; break;
-          case 5: b=128; break;
-          }*/
         cube->texdata[face][it][is][0] = r;
         cube->texdata[face][it][is][1] = g;
         cube->texdata[face][it][is][2] = b;
@@ -183,44 +187,7 @@ GLuint ui_skymap_create(ClientOptions const& opt, double solar_time)
     }
     fclose(starf);
   }
-#if 0
   for (int f=0; f<6; f++) {
-    // draw a red line from (0,0) to (+1,0)
-    const int half = SKYMAP_REZ/2;
-    for (int i=0; i<half*2/3; i++) {
-      cube->texdata[f][half][i+half][0] = 255;
-      cube->texdata[f][half][i+half][1] = 0;
-      cube->texdata[f][half][i+half][2] = 0;
-      cube->texdata[f][half][i+half][3] = 255;
-    }
-    // draw a green line from (0,0) to (0,+1)
-    for (int i=0; i<half*2/3; i++) {
-      cube->texdata[f][i+half][half][0] = 0;
-      cube->texdata[f][i+half][half][1] = 255;
-      cube->texdata[f][i+half][half][2] = 0;
-      cube->texdata[f][i+half][half][3] = 255;
-    }
-    // draw some pip marks
-    for (int i=0; i<(f+1); i++) {
-      int dx = 3;
-      int dy = (i+1) * 3;
-      cube->texdata[f][half+dx][half+dy][0] = 255;
-      cube->texdata[f][half+dx][half+dy][1] = 255;
-      cube->texdata[f][half+dx][half+dy][2] = 255;
-      cube->texdata[f][half+dx][half+dy][3] = 255;
-    }
-  }
-#endif   
-  for (int f=0; f<6; f++) {
-    /*
-    for (int i=0; i<100; i++) {
-      int ix = random()&(SKYMAP_REZ-1);
-      int iy = random()&(SKYMAP_REZ-1);
-      texdata[f][ix][iy][0] = 255;
-      texdata[f][ix][iy][1] = 255;
-      texdata[f][ix][iy][2] = 255;
-      texdata[f][ix][iy][3] = 255;
-      }*/
     glTexImage2D(face_id[f], 0, GL_RGBA, 
                  SKYMAP_REZ,
                  SKYMAP_REZ,
@@ -242,7 +209,7 @@ GLuint ui_skymap_create(ClientOptions const& opt, double solar_time)
 
 void SkyView::update(glm::dvec3 const& posn, double solar_time)
 {
-  float longitude = posn[0] * 0.01;
+  float longitude = posn[0] * longitude_radians_per_x;
 
   location = posn;
   time_of_year = fmod(solar_time / home_period, 1.0);

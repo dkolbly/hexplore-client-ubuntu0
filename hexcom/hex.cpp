@@ -108,6 +108,6 @@ HexEdgeBuilder __heb;
 void convert_xyz_to_hex(glm::vec3 const &loc, int *ixp, int *iyp, int *izp)
 {
   convert_xy_to_hex(loc[0], loc[1], ixp, iyp);
-  *izp = floor(loc[2]/z_scale);
+  *izp = round(loc[2]/z_scale);
 }
 

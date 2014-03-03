@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <sys/types.h>
+#include <set>
 #include "ui.h"
 #include <zlib.h>
 #include <sys/time.h>
@@ -16,14 +17,11 @@
 #include "wire/entity.pb.h"
 #include "entity.h"
 #include "sound.h"
-// SDL2-ttf is not available in 13.10 (!)
-#if HAVE_SDL2_TTF
-#include <SDL_ttf.h>
-#endif
 
 #include <hexcom/curve.h>
 #include "skymap.h"
 #include "clientoptions.h"
+#include "overlay.h"
 
 /*
 see http://www.rioki.org/2013/03/07/glsl-skybox.html
@@ -86,8 +84,8 @@ static const Posture posture_info[3] = {
 #define CROUCH_SPEED                    (4.0)
 #define STANDUP_SPEED                   (CROUCH_SPEED*1.5)
 
-#define TEXT_POPUP_W  (8*80)
-#define TEXT_POPUP_H  (8*2)
+#define TEXT_POPUP_W  (8*40)    // 40 characters wide
+#define TEXT_POPUP_H  (8*2)     // 2 columns high
 
 unsigned keymap[] = {
   SDL_SCANCODE_W,
@@ -143,104 +141,21 @@ void ui_inputbox_start_typing(UserInterface *ui)
   ui->inputbox.dirty = true;
 }
 
-int ui_draw_overlay(UserInterface *ui, OverlayWindow *overlay,
-                    float dx, float dy)
+
+static Picture *popupBackground;
+
+// Render an OverlayImage at a given (pixel) coordinate
+// on the window, with a given scale (e.g., scale 2.0 means
+// that each pixel in the OverlayImage will take 2x2 pixels
+// in the window)
+
+void ui_render_overlay(UserInterface *ui,
+                       OverlayImage *img,
+                       int window_x,
+                       int window_y,
+                       float scale)
 {
-  if (!overlay) {
-    return 0;
-  }
-  if (overlay->ow_showtime == 0) {
-    return 0;
-  }
-  if (overlay->ow_cleartime < ui->frameTime) {
-    overlay->ow_showtime = 0;
-    return 0;
-  }
-
-  glUseProgram(0);
-  glLoadIdentity();
-  glDisable(GL_DEPTH_TEST);
-  glDisable(GL_CULL_FACE);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-  float texw, texh;
-  SDL_GL_BindTexture(overlay->ow_content, &texw, &texh);
-
-  struct { double x, y, z; } vertex_coords[6];
-  struct { double u, v; } texture_coords[6];
-
-  /*int w, h;
-    SDL_GetWindowSize(ui->window, &w, &h);
-  printf("window size %d, %d\n", w, h);*/
-
-  double x0 = overlay->ow_x0 + dx;
-  double y0 = overlay->ow_y0 + dy;
-  double x1 = overlay->ow_x1 + dx;
-  double y1 = overlay->ow_y1 + dy;
-
-  vertex_coords[0].x = x0;
-  vertex_coords[0].y = y1;
-  vertex_coords[0].z = 0;
-  texture_coords[0].u = 0;
-  texture_coords[0].v = 0;
-
-  vertex_coords[1].x = x1;
-  vertex_coords[1].y = y0;
-  vertex_coords[1].z = 0;
-  texture_coords[1].u = texw;
-  texture_coords[1].v = texh;
-
-  vertex_coords[2].x = x0;
-  vertex_coords[2].y = y0;
-  vertex_coords[2].z = 0;
-  texture_coords[2].u = 0;
-  texture_coords[2].v = texh;
-
-  vertex_coords[3].x = x0;
-  vertex_coords[3].y = y1;
-  vertex_coords[3].z = 0;
-  texture_coords[3].u = 0;
-  texture_coords[3].v = 0;
-
-  vertex_coords[4].x = x1;
-  vertex_coords[4].y = y1;
-  vertex_coords[4].z = 0;
-  texture_coords[4].u = texw;
-  texture_coords[4].v = 0;
-
-  vertex_coords[5].x = x1;
-  vertex_coords[5].y = y0;
-  vertex_coords[5].z = 0;
-  texture_coords[5].u = texw;
-  texture_coords[5].v = texh;
-  
-  glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-  glEnableClientState(GL_VERTEX_ARRAY);
-  //glEnableClientState(GL_COLOR_ARRAY);
-
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glVertexPointer(3, GL_DOUBLE, 0, &vertex_coords[0]);
-  glTexCoordPointer(2, GL_DOUBLE, 0, &texture_coords[0]);
-  //glColorPointer(4, GL_FLOAT, 0, &color[0]);
-
-  glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-  unsigned indices[6] = { 0, 1, 2, 3, 4, 5};
-  glColor4f(1, 1, 1, 1);
-  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, &indices[0]);
-
-  //glDisableClientState(GL_COLOR_ARRAY);
-  glDisableClientState(GL_VERTEX_ARRAY);
-  glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-  SDL_GL_UnbindTexture(overlay->ow_content);
-
-  return 1;
-}
-
-void ui_popup_draw(UserInterface *ui)
-{
-  if (ui->inputbox.popupTime == 0) {
+  if (!img) {
     return;
   }
 
@@ -249,6 +164,7 @@ void ui_popup_draw(UserInterface *ui)
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_CULL_FACE);
   glEnable(GL_BLEND);
+  glEnable(GL_TEXTURE_2D);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   //glColor4f(0.5, 0.5, 0, 0.5);
@@ -260,8 +176,11 @@ void ui_popup_draw(UserInterface *ui)
   int window_w, window_h;
   SDL_GetWindowSize(ui->window, &window_w, &window_h);
 
-  float texw, texh;
-  SDL_GL_BindTexture(ui->popupTexture, &texw, &texh);
+  float texw = 1.0; /*o->width;*/
+  float texh = 1.0; /*o->height;*/
+
+  glActiveTexture(GL_TEXTURE0);
+  img->bind();
 
   struct { double x, y, z; } vertex_coords[6];
   struct { double u, v; } texture_coords[6];
@@ -269,10 +188,10 @@ void ui_popup_draw(UserInterface *ui)
   double screen_horz_rez = 2.0 / window_w;
   double screen_vert_rez = 2.0 / window_h;
 
-  double x0 = -0.75f;
-  double y0 = -0.8f;
-  double x1 = x0 + screen_horz_rez * TEXT_POPUP_W * 2;
-  double y1 = y0 + screen_vert_rez * TEXT_POPUP_H * 2;
+  double x0 = -1.0 + window_x * screen_horz_rez;
+  double y1 = 1 - window_y * screen_vert_rez;
+  double x1 = x0 + screen_horz_rez * img->width * scale;
+  double y0 = y1 - screen_vert_rez * img->height * scale;
 
   vertex_coords[0].x = x0;
   vertex_coords[0].y = y1;
@@ -330,12 +249,45 @@ void ui_popup_draw(UserInterface *ui)
   //glDisableClientState(GL_COLOR_ARRAY);
   glDisableClientState(GL_VERTEX_ARRAY);
   glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-  SDL_GL_UnbindTexture(ui->popupTexture);
+  img->unbind();
+}
+
+int ui_draw_overlay(UserInterface *ui, OverlayWindow *overlay,
+                    int dx, int dy)
+{
+  if (!overlay) {
+    return 0;
+  }
+  if (overlay->ow_showtime == 0) {
+    return 0;
+  }
+  if (overlay->ow_cleartime < ui->frameTime) {
+    overlay->ow_showtime = 0;
+    return 0;
+  }
+
+  ui_render_overlay(ui, overlay->ow_content, 
+                    overlay->ow_x + dx,
+                    overlay->ow_y + dy,
+                    1.0);
+  return 1;
+}
+
+void ui_popup_draw(UserInterface *ui)
+{
+  if (ui->inputbox.popupTime == 0) {
+    return;
+  }
+  int window_w, window_h;
+  SDL_GetWindowSize(ui->window, &window_w, &window_h);
+  ui_render_overlay(ui, ui->popupOverlay, 
+                    20, window_h - TEXT_POPUP_H*2 - 20,
+                    2.0);
 }
 
 OverlayWindow *ui_load_overlay(UserInterface *ui, 
                                const char *path,
-                               float x0, float y0)
+                               int x, int y)
 {
   Picture *p = Picture::load_png(path);
   OverlayWindow *w = new OverlayWindow();
@@ -344,47 +296,12 @@ OverlayWindow *ui_load_overlay(UserInterface *ui,
   SDL_GetWindowSize(ui->window, &window_w, &window_h);
   printf("window size %d, %d\n", window_w, window_h);
 
-  w->ow_x0 = x0;
-  w->ow_y0 = y0 - p->height * (2.0/window_h);
-  w->ow_x1 = x0 + p->width * (2.0/window_w);
-  w->ow_y1 = y0;
+  w->ow_x = x;
+  w->ow_y = y;
   w->ow_showtime = 0;
 
-  w->ow_content = SDL_CreateTexture(ui->renderer,
-                                    SDL_PIXELFORMAT_ARGB8888,
-                                    SDL_TEXTUREACCESS_STREAMING,
-                                    p->width, 
-                                    p->height);
-  SDL_SetTextureBlendMode(w->ow_content, SDL_BLENDMODE_BLEND);
-
-  Uint32 *dst;
-  void *pixels;
-  int pitch;
-
-  if (SDL_LockTexture(w->ow_content, NULL, &pixels, &pitch) < 0) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, 
-                 "Couldn't lock texture: %s\n", SDL_GetError());
-    return NULL;
-  }
-  uint16_t *rp = p->red_plane();
-  uint16_t *gp = p->green_plane();
-  uint16_t *bp = p->blue_plane();
-  uint16_t *ap = p->alpha_plane();
-  unsigned pic_height = p->height;
-  unsigned pic_width = p->width;
-
-  for (unsigned row = 0; row < pic_height; ++row) {
-    dst = (Uint32*)((Uint8*)pixels + row * pitch);
-    for (unsigned col = 0; col < pic_width; ++col) {
-      int r, g, b, a;
-      r = rp[row*pic_width+col] >> 8;
-      g = gp[row*pic_width+col] >> 8;
-      b = bp[row*pic_width+col] >> 8;
-      a = ap[row*pic_width+col] >> 8;
-      *dst++ = (a << 24)|(r<<16)|(g<<8)|(b);
-    }
-  }
-  SDL_UnlockTexture(w->ow_content);
+  w->ow_content = new OverlayImage(p);
+  delete p;
   return w;
 }
 
@@ -395,6 +312,7 @@ struct LockedTexture {
   unsigned pitch_words;
   unsigned width;
   unsigned height;
+
   LockedTexture(SDL_Texture *texture, unsigned w, unsigned h) 
     : tex(NULL),
       pixels(NULL),
@@ -408,10 +326,10 @@ struct LockedTexture {
       return;
     }
     pitch_words = pitch / sizeof(uint32_t);
-    /*printf("Locked texture at %p for %u x %u ; pitch %d\n", 
+    printf("Locked texture at %p for %u x %u ; pitch %d\n", 
            pixels,
            width, height,
-           pitch);*/
+           pitch);
     tex = texture;
   }
   bool valid() {
@@ -420,6 +338,7 @@ struct LockedTexture {
           
   ~LockedTexture() {
     if (tex) {
+      printf("Unlocked texture\n");
       SDL_UnlockTexture(tex);
     }
   }
@@ -436,30 +355,6 @@ struct LockedTexture {
 
 };
 
-int ui_drawtext(UserInterface *ui,
-                LockedTexture const& tex,
-                int x, int y,
-                std::string const& str)
-{
-  Picture *font = ui->popupFont;
-  uint16_t *red = font->red_plane();
-  unsigned stride = font->width;
-
-  for (size_t i=0; i<str.size(); i++) {
-    uint8_t ch = str[i];
-    for (int dy=0; dy<8; dy++) {
-      for (int dx=0; dx<8; dx++) {
-        if (red[dx + ch * 8 + dy * stride] < 0x8000) {
-          tex.put_pixel(x + dx + i*8,
-                        y + dy,
-                        0xFF000000);
-        }
-      }
-    }
-  }
-  return 0;
-}
-
 
 void ui_popup_update(UserInterface *ui)
 {
@@ -468,31 +363,19 @@ void ui_popup_update(UserInterface *ui)
   }
   ui->inputbox.dirty = false;
 
-  SDL_Texture *texture = ui->popupTexture;
-  Uint32 *dst;
-  int row, col;
-  void *pixels;
-  int pitch;
+  //font.f_charmap = ui->popupFont;
 
-  LockedTexture ltex(texture, TEXT_POPUP_W, TEXT_POPUP_H);
+  OverlayImage *o = ui->popupOverlay;
+  o->paint(*popupBackground);
+  o->write(*ui->popupFont, ui->inputbox.text, 3, 2);
 
-  if (SDL_LockTexture(texture, NULL, &pixels, &pitch) < 0) {
-    return;
+  // draw the cursor
+  for (int dy=0; dy<8; dy++) {
+    o->put_pixel(3 + ui->inputbox.cursor * 8,
+                 2 + dy,
+                 0xff888888);
   }
-  for (row = 0; row < TEXT_POPUP_H; ++row) {
-    dst = (Uint32*)((Uint8*)pixels + row * pitch);
-    for (col = 0; col < TEXT_POPUP_W; ++col) {
-      int r, g, b;
-      r = (sin(row/10.0)*100)+110;
-      g = r;
-      b = r;
-      int a = r;
-      *dst++ = (a << 24)|(r<<16)|(g<<8)|(b);
-    }
-  }
-
-  ui_drawtext(ui, ltex, 0, 0, ui->inputbox.text);
-  
+  o->flush();
 }
 
 Animus::~Animus()
@@ -556,6 +439,16 @@ bool PlayerJumpAnimus::update(double dt)
   return true;
 }
 
+static inline char blocktypechar(uint8_t t)
+{
+  switch (t) {
+  case 0: return '-';
+  case 240: return '~';
+  case 255: return '?';
+  default: return '#';
+  }
+}
+
 /**
  *  Update the underlying entity's attributes according to the 
  *  current time relative to the animation, which is between 0.0 and 1.0
@@ -614,7 +507,7 @@ bool PlayerWalkingAnimus::update(double dt)
             pa_ui->location[0], pa_ui->location[1], r1);
   }
   status.show_adj = false;
-  sprintf(status.msg1, "range from {%d,%d} %.3f", s.x, s.y, r1);
+  sprintf(status.msg1, "range from {%d,%d,%d+%d} %.3f", s.x, s.y, s.z, s.span->height, r1);
 
   if (r1 < 0.8/2.0) {
     // we're still pretty close to the center of this one; don't worry
@@ -639,7 +532,11 @@ bool PlayerWalkingAnimus::update(double dt)
   assert(rc);
   sprintf(status.msg1 + strlen(status.msg1), " Xf %d", cp.exit_face);
   if (debug_animus) {
-    fprintf(debug_animus, " Xf %d", cp.exit_face);
+    fprintf(debug_animus, "{%d,%d,%d+%d} Xf %d", 
+            s.x,
+            s.y,
+            s.z, s.span->height,
+            cp.exit_face);
   }
 
   if (cp.exit_range > 0.2) {
@@ -672,10 +569,10 @@ bool PlayerWalkingAnimus::update(double dt)
   }
   assert(adj.region);
   Region *rgn = adj.region;
-  int idy = adj.y - rgn->origin.y;
   int idx = adj.x - rgn->origin.x;
+  int idy = adj.y - rgn->origin.y;
   if (debug_animus) {
-    fprintf(debug_animus, " adj {%d,%d}", adj.x, adj.y);
+    fprintf(debug_animus, " adj {%d,%d,%d+%d}", adj.x, adj.y, adj.z, adj.span->height);
   }
   int z = floor(pa_ui->location[2] / z_scale);
   SpanVector const& spanvec(rgn->columns[idy][idx]);
@@ -687,6 +584,23 @@ bool PlayerWalkingAnimus::update(double dt)
 #define MAX_STEP_UP     (5)
 #define MAX_JUMP_UP     (20)
 #define MAX_STEP_DOWN   (-3)
+
+  if (debug_animus) {
+    fprintf(debug_animus, " [%c%c%c%c%c.%c.%c%c%c%c%c]",
+            blocktypechar(v_type[32-5]),
+            blocktypechar(v_type[32-4]),
+            blocktypechar(v_type[32-3]),
+            blocktypechar(v_type[32-2]),
+            blocktypechar(v_type[32-1]),
+
+            blocktypechar(v_type[32]),
+
+            blocktypechar(v_type[32+1]),
+            blocktypechar(v_type[32+2]),
+            blocktypechar(v_type[32+3]),
+            blocktypechar(v_type[32+4]),
+            blocktypechar(v_type[32+5]));
+  }
 
   const Posture *use_posture = &posture_info[STANDING_POSTURE];
   if (pa_ui->activePlayerAnimae & (1<<CROUCH)) {
@@ -769,6 +683,9 @@ bool PlayerWalkingAnimus::update(double dt)
   //double zbump2 = (adj.z + adj.span->height) * (r1 / (r1+r2));
   int newzi = (s.z + s.span->height);
   int adjzi = (adj.z + adj.span->height);
+  if (debug_animus) {
+    fprintf(debug_animus, " zi(%d->%d)", newzi, adjzi);
+  }
   //float newz = (s.z + s.span->height) * z_scale;
 
   /*
@@ -866,7 +783,6 @@ void PlayerWalkingAnimus::complete()
     // since we ran the update(), we can just read the location
     // from the ui
     a->pwa_startloc = pa_ui->location;
-
     pa_ui->playerAnimae.push_back(a);
   }
 }
@@ -898,6 +814,17 @@ void ui_cancel_animus(UserInterface *ui, Animus *a)
   a->update(dt);
   ui_flush_player_info(ui);
   delete a;
+}
+
+void ui_remove_all_animae(UserInterface *ui)
+{
+  for (std::vector<PlayerAnimus*>::iterator i=ui->playerAnimae.begin();
+       i != ui->playerAnimae.end();
+       ++i) {
+    delete *i;
+  }
+  ui->playerAnimae.clear();
+  ui->activePlayerAnimae = 0;
 }
 
 /**
@@ -1515,30 +1442,6 @@ void ui_render_status(struct UserInterface *ui)
     pts[3] = pts[0];
     SDL_RenderDrawLines(rend, &pts[0], 4);
   }
-
-
-#if HAVE_SDL2_TTF
-  if (status.msg1[0] != '\0') {
-    SDL_Color fg = {0,0,0};
-    SDL_Surface *x = TTF_RenderText_Solid(ui->popupFont, status.msg1, fg);
-    assert(x);
-    if (x) {
-      SDL_Texture *tx = SDL_CreateTextureFromSurface(rend, x);
-      assert(tx);
-      if (tx) {
-        SDL_Rect dstr;
-        dstr.x = 20;
-        dstr.y = 20;
-        dstr.w = x->w;
-        dstr.h = x->h;
-        SDL_RenderCopy(rend, tx, NULL, &dstr);
-        SDL_DestroyTexture(tx);
-      }
-      SDL_FreeSurface(x);
-    }
-  }
-#endif /* HAVE_SDL2_TTF */
-
   SDL_RenderPresent(rend);
 }
 
@@ -1599,6 +1502,7 @@ void ui_render(struct UserInterface *ui)
   //printf("rendering terrain:");
   std::vector<Mesh*> water;
 
+  glPushAttrib(GL_ALL_ATTRIB_BITS);
   for (std::vector<TerrainSection>::iterator m=ui->terrain.begin(); m!=ui->terrain.end(); ++m) {
     Posn p(m->ts_posn);
     glm::mat4 identity(1);
@@ -1624,27 +1528,37 @@ void ui_render(struct UserInterface *ui)
     }
     glDisable(GL_BLEND);
   }
-
-  //printf("\n");
+  glPopAttrib();
 
   glActiveTexture(GL_TEXTURE0);
+
+  glPushAttrib(GL_ALL_ATTRIB_BITS);
   for (EntityMap::iterator i=ui->entities.begin(); i!=ui->entities.end(); ++i) {
     if (i->second->handler) {
       i->second->handler->draw(ui, i->second);
     }
   }
+  glPopAttrib();
 
+  glPushAttrib(GL_ALL_ATTRIB_BITS);
   ui_outline_hit(ui);
+  glPopAttrib();
 
   // draw the text popup
+  glPushAttrib(GL_ALL_ATTRIB_BITS);
   ui_popup_draw(ui);
+  glPopAttrib();
+
+
+  glPushAttrib(GL_ALL_ATTRIB_BITS);
   // draw the tool popup
   if (ui_draw_overlay(ui, ui->toolPopup, 0, 0)) {
-    float dy = (ui->toolPopup->ow_y1 - ui->toolPopup->ow_y0)/8;
+    int dy = ui->toolPopup->ow_content->height/8;
     ui_draw_overlay(ui, ui->toolPopupSel, 
                     0, 
-                    (ui->toolSlot-7) * dy);
+                    (7-ui->toolSlot) * dy);
   }
+  glPopAttrib();
 
   glDisable(GL_BLEND);
 }
@@ -1678,11 +1592,15 @@ GLuint ui_load_texture(const wire::model::Image *img)
   assert(rc == 0);
   assert(rgba_buf_len == num_bytes);
 
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+  // TODO, convert to a hexcom::Picture object and then
+  // unify Picture->Texture with ui_load_textures()
+  // rearrange the data
+
   GLuint id;
   glGenTextures(1, &id);
   glBindTexture(GL_TEXTURE_2D, id);
 
-  // rearrange the data
   unsigned char *texdata = (unsigned char *)malloc(width*height*4);
   uint16_t *red_ptr = (uint16_t*)&rgba_buf[0];
   uint16_t *green_ptr = (uint16_t*)&rgba_buf[width*height*sizeof(uint16_t)];
@@ -1693,10 +1611,10 @@ GLuint ui_load_texture(const wire::model::Image *img)
     unsigned src_i = y * width;
     unsigned dst_i = ((height-1) - y) * width;
     for (unsigned x=0; x<width; x++) {
-      texdata[4*dst_i+0] = red_ptr[src_i];
-      texdata[4*dst_i+1] = green_ptr[src_i];
-      texdata[4*dst_i+2] = blue_ptr[src_i];
-      texdata[4*dst_i+3] = alpha_ptr[src_i];
+      texdata[4*dst_i+0] = red_ptr[src_i] >> 8;
+      texdata[4*dst_i+1] = green_ptr[src_i] >> 8;
+      texdata[4*dst_i+2] = blue_ptr[src_i] >> 8;
+      texdata[4*dst_i+3] = alpha_ptr[src_i] >> 8;
       dst_i++;
       src_i++;
     }
@@ -1882,6 +1800,37 @@ int my_toascii(SDL_Event *event)
 
 void ui_process_command(UserInterface *ui, std::string const& text)
 {
+  printf("processing command: \"%s\"\n", text.c_str());
+  if (text == "home") {
+    ui_remove_all_animae(ui);
+    Posn p(0,0);
+    ui->world->requestRegionIfNotPresent(ui->cnx, p);
+    glm::vec3 l(0.5, 0.5, 10000);
+    SpanInfo s = ui->world->getSpanBelow(l);
+    if (s.region && s.span) {
+      ui->location[0] = 0.5;
+      ui->location[1] = 0.5;
+      ui->location[2] = z_scale * (s.z + s.span->height);
+      ui_flush_player_info(ui);
+      printf("going home ... %d %d %d ==> %.3f %.3f %.3f\n", 
+             s.x, s.y, s.z + s.span->height,
+             ui->location[0], ui->location[1], ui->location[2]);
+    } else {
+      printf("could not go home, trying to go up instead...\n");
+      l = ui->location;
+      l.z = 10000;
+      s = ui->world->getSpanBelow(l);
+      if (s.region && s.span) {
+        ui->location[2] = z_scale * (s.z + s.span->height);
+        ui_flush_player_info(ui);
+        printf("went up ... %d %d %d ==> %.3f %.3f %.3f\n", 
+               s.x, s.y, s.z + s.span->height,
+               ui->location[0], ui->location[1], ui->location[2]);
+      }
+    }
+    return;
+  }
+
   if (text[0] == '/') {
     tell_entity(ui, text.substr(1));
     return;
@@ -1956,7 +1905,7 @@ void ui_process_key_inputbox(struct UserInterface *ui, SDL_Event *event)
     default:
       if ((event->key.keysym.sym >= ' ') && (event->key.keysym.sym < 0x7F)) {
         char ch = my_toascii(event);
-        printf("keydown... '%c'\n", ch);
+        //printf("keydown... '%c'\n", ch);
         b->text.insert(b->cursor, 1, ch);
         b->cursor++;
       } else {
@@ -2064,9 +2013,8 @@ void GUIWireHandler::dispatch(wire::entity::Tell *msg)
 
 void GUIWireHandler::dispatch(wire::terrain::Terrain *msg)
 {
-  printf("Got terrain data\n");
   wire::terrain::Rect const& area = msg->area();
-  printf("   (%d,%d) size (%d,%d)\n", area.x(), area.y(), area.w(), area.h());
+  printf("Got terrain data (%d,%d)\n", area.x(), area.y());
   bool verbose = false;
   /*if ((area.x() == 0) && (area.y() == 0)) {
     verbose = true;
@@ -2150,7 +2098,7 @@ void GUIWireHandler::dispatch(wire::hello::ServerGreeting *msg)
     ui->solarTimeReference = ui->frameTime;
   }
   if (msg->has_solardayreal()) {
-    printf("  Solar day unit: %.3f sec\n", msg->solardayreal());
+    printf("  Solar day unit: %.1f sec\n", msg->solardayreal());
     // solar time rate is solar day-units per realtime unit (microsecond)
     // so we need to multiply by 10^-6 to get seconds
     // and then divide by the length of the solar day in wall clock seconds
@@ -2249,11 +2197,11 @@ const wire::model::Image *find_image(UserInterface *ui,
                                      wire::entity::EntityType const& et,
                                      std::string const& name)
 {
-  printf("checking <%s> for \"%s\"\n", et.type().c_str(), name.c_str());
+  //printf("checking <%s> for \"%s\"\n", et.type().c_str(), name.c_str());
   unsigned n = et.attr_size();
   for (unsigned i=0; i<n; i++) {
     wire::entity::EntityTypeAttr const& ea = et.attr(i);
-    printf("   checking \"%s\"\n", ea.key().c_str());
+    //printf("   checking \"%s\"\n", ea.key().c_str());
     if (ea.key() == name) {
       if (ea.has_image_value()) {
         return &ea.image_value();
@@ -2269,6 +2217,7 @@ const GLuint load_texture(UserInterface *ui,
                           wire::entity::EntityType const& et,
                           std::string const& name)
 {
+  static std::set<std::string> already_reported_fallbacks;
   static std::unordered_map<std::string,GLuint> loaded_textures;
 
   std::string key = et.type();
@@ -2282,9 +2231,16 @@ const GLuint load_texture(UserInterface *ui,
   }
   const wire::model::Image *img = find_image(ui, et, name);
   if (!img) {
-    printf("No image \"%s\" found on entity type \"%s\"\n", 
-           name.c_str(),
-           et.type().c_str());
+    std::string skey(name);
+    skey += "/";
+    skey += et.type();
+    if (already_reported_fallbacks.count(skey) == 0) {
+      fprintf(stderr,
+              "Warning: No image \"%s\" found on entity type \"%s\", using fallback\n", 
+              name.c_str(),
+              et.type().c_str());
+      already_reported_fallbacks.insert(skey);
+    }
     // fallback
     return ui->cursorTexture;
   }
@@ -2299,11 +2255,11 @@ const wire::model::Mesh *find_mesh(UserInterface *ui,
                                    wire::entity::EntityType const& et,
                                    std::string const& name)
 {
-  printf("checking <%s> for \"%s\"\n", et.type().c_str(), name.c_str());
+  //printf("checking <%s> for \"%s\"\n", et.type().c_str(), name.c_str());
   unsigned n = et.attr_size();
   for (unsigned i=0; i<n; i++) {
     wire::entity::EntityTypeAttr const& ea = et.attr(i);
-    printf("   checking \"%s\"\n", ea.key().c_str());
+    //printf("   checking \"%s\"\n", ea.key().c_str());
     if (ea.key() == name) {
       if (ea.has_mesh_value()) {
         return &ea.mesh_value();
@@ -2327,7 +2283,7 @@ SimpleEntityHandler::SimpleEntityHandler(UserInterface *ui,
     printf("!! not found\n");
     mesh = NULL;
   } else {
-    printf("FOUND...\n");
+    //printf("FOUND...\n");
     mesh = internalize_model_mesh(*m, &ui->robotShader, &bbox, glm::mat4(1));
     mesh->picker = make_simple_picker(bbox);
   }
@@ -2357,6 +2313,7 @@ void show_box(UserInterface *ui, frect box)
   glLineWidth(1);
   glDisable(GL_CULL_FACE);
   glEnable(GL_DEPTH_TEST);
+  glDisable(GL_TEXTURE_2D);
   glm::mat4 mx = ui->projectionMatrix * ui->current_viewpoint.vp_matrix;
   glLoadMatrixf(&mx[0][0]);
 
@@ -2482,10 +2439,9 @@ EntityHandler *EntityHandler::get(UserInterface *ui,
                                   std::string const& type,
                                   std::string const& subtype)
 {
-  printf("get handler for \"%s\"\n", type.c_str());
   EntityTypeMap::iterator i = ui->etypes.find(type);
   if (i == ui->etypes.end()) {
-    printf("   no such entity type :-(\n");
+    fprintf(stderr, "warning: in EntityHandler::get(\"%s\"), no such entity type\n", type.c_str());
     return NULL;
   }
   return new SimpleEntityHandler(ui, i->second);
@@ -2516,7 +2472,7 @@ void UserInterface::update_entity(wire::entity::EntityInfo const& info)
       sub = info.subtype();
     }
     e->handler = EntityHandler::get(this, type, sub);
-    printf(" type=\"%s\"/\"%s\"\n", type.c_str(), sub.c_str());
+    //printf(" type=\"%s\"/\"%s\"\n", type.c_str(), sub.c_str());
   }
   unsigned l = info.coords_size();
   bool smooth = false;
@@ -2858,7 +2814,7 @@ UserInterface::UserInterface(ClientOptions const& opt)
   status_window = NULL;
   status_renderer = NULL;
 
-  window = SDL_CreateWindow("Main Game",
+  window = SDL_CreateWindow("Hexplore",
                             100 /*SDL_WINDOWPOS_UNDEFINED*/,
                             100 /*SDL_WINDOWPOS_UNDEFINED*/,
                             800, 600,
@@ -2935,26 +2891,22 @@ UserInterface::UserInterface(ClientOptions const& opt)
 
   textureId = ui_load_textures("textures/terrain.png");
   cursorTexture = ui_load_textures("textures/turtle.png");
-  popupFont = Picture::load_png("textures/8x8font.png");
+
+  Picture *f = Picture::load_png("textures/8x8font.png");
+  popupFont = new Font(f);
+  delete f;
+
+  popupBackground = Picture::load_png("textures/inputbox.png");
 
   cube_map_texture_id = ui_skymap_create(opt, 0.0);
   outlineMesh = NULL;
-
-  popupTexture = SDL_CreateTexture(renderer,
-                                   SDL_PIXELFORMAT_ARGB8888,
-                                   SDL_TEXTUREACCESS_STREAMING,
-                                   TEXT_POPUP_W, TEXT_POPUP_H);
-  SDL_SetTextureBlendMode(popupTexture, SDL_BLENDMODE_BLEND);
+  
+  popupOverlay = new OverlayImage(TEXT_POPUP_W, TEXT_POPUP_H);
 
   ui_inputbox_init(this);
 
-  toolPopup = ui_load_overlay(this,
-                              "textures/toolbar.png",
-                              -0.9, 0.9);
-  toolPopupSel = ui_load_overlay(this,
-                                 "textures/toolsel.png",
-                                 -0.9, 0.9);
-
+  toolPopup = ui_load_overlay(this, "textures/toolbar.png", 20, 20);
+  toolPopupSel = ui_load_overlay(this, "textures/toolsel.png", 20, 20);
   toolPopupSel->ow_showtime = 1;
   toolPopupSel->ow_cleartime = ~0ULL >> 1;
 }
@@ -2983,6 +2935,8 @@ int main(int argc, char *argv[])
   if (!opt.validate()) {
     return 1;
   }
+
+  debug_animus = opt.debug_animus;
 
   // First thing, change to the home directory
   // in the default ubuntu build, this is configured as

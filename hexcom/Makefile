@@ -17,7 +17,7 @@ CFLAGS=-g -Wall -std=c++11 `$(PNG_CONFIG) --cflags`
 	g++ $(CFLAGS) -MD -c $< -o $@
 
 clean::
-	rm -f $(OFILES)
+	rm -f $(OFILES) *.d libhexcom.a
 
 -include *.d
 

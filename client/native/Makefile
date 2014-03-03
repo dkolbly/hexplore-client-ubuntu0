@@ -16,7 +16,7 @@ LFLAGS=-L../../hexcom -lhexcom `$(SDL2_CONFIG) --libs`  $(SDL_TTF_LFLAGS) \
 #`pkg-config --libs $(GLFW_CONFIG)`
 
 CPP_SOURCES=main.cpp mesh.cpp world.cpp connection.cpp text_ui.cpp \
-	sound.cpp skymap.cpp clientoptions.cpp
+	sound.cpp skymap.cpp clientoptions.cpp overlay.cpp
 
 SERVER_OUT_DIR=../../server/src/.out
 
@@ -54,7 +54,7 @@ $(OUT)/wire/%.o: $(SERVER_OUT_DIR)/wire/%.cc
 	g++ $(CFLAGS) -MD -c $< -o $@
 
 clean::
-	rm -rf $(OUT) hc
+	rm -rf $(OUT) hc orbit
 
 
 -include $(OUT)/*.d

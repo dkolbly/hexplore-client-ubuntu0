@@ -50,6 +50,19 @@ void expandSpan(Region *rgn, SpanVector const& vec, int z_start, int h,
   }
 }
 
+static inline char blocktypechar(uint8_t t)
+{
+  switch (t) {
+  case 0: return ' ';
+  case 1: case 2: case 3: case 4: case 5:
+  case 6: case 7: case 8: case 9:
+    return t + '0';
+  case 240: return '~';
+  case 255: return '?';
+  default: return '#';
+  }
+}
+
 int Region::set(int x, int y, int z, int height, int type, int flags)
 {
   int ix = x - origin.x;
@@ -73,11 +86,7 @@ int Region::set(int x, int y, int z, int height, int type, int flags)
     printf("\n");
     printf("BEFORE: ");
     for (int i=0; i<64; i++) {
-      if (buf[i]) {
-        putchar('0'+buf[i]);
-      } else {
-        putchar(' ');
-      }
+      putchar(blocktypechar(buf[i]));
     }
     printf("\n");
   }
@@ -95,11 +104,7 @@ int Region::set(int x, int y, int z, int height, int type, int flags)
 
     printf(" AFTER: ");
     for (int i=0; i<64; i++) {
-      if (buf[i]) {
-        putchar('0'+buf[i]);
-      } else {
-        putchar(' ');
-      }
+      putchar(blocktypechar(buf[i]));
     }
     printf("\n");
   }

@@ -71,7 +71,7 @@ Picture *Picture::load_png(const char *path)
                | PNG_TRANSFORM_BGR
                | PNG_TRANSFORM_GRAY_TO_RGB,
                NULL);
-  printf("read it all\n");
+
   png_uint_32 width, height;
   int bit_depth, color_type, interlace_type,
     compression_type, filter_method;
@@ -86,8 +86,8 @@ Picture *Picture::load_png(const char *path)
                &compression_type,
                &filter_method);
 
-  printf("%s: %u x %u (%d bits)\n", path, width, height, bit_depth);
-  printf("    mode=%d (%s)\n", color_type, (color_type & PNG_COLOR_MASK_ALPHA) ? "has alpha" : "no alpha");
+  printf("%s: %u x %u (%d bits), ", path, width, height, bit_depth);
+  printf("mode=%d (%s)\n", color_type, (color_type & PNG_COLOR_MASK_ALPHA) ? "has alpha" : "no alpha");
 
   if (!((bit_depth == 8) || (bit_depth == 16))) {
     abort();

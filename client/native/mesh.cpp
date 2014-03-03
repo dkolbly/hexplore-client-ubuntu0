@@ -85,7 +85,8 @@ struct MeshAccumulator {
       normalp( &normal[0] ),
       indexp( &index[0] ),
       linep( &lines[0] ),
-      count(0)
+      count(0),
+      num_transparent(0)
   {
   }
 
@@ -752,7 +753,13 @@ TerrainSection build_section_from_region(UserInterface *ui,
   Mesh *tm = ma->make_transparent_triangular(&ui->waterShader, m);
   delete ma;
   uint64_t t1 = real_time();
-  printf("built %d+%d triangles in %.4f sec\n", m->count, tm ? tm->count : 0, (t1-t0) * 1.0e-6);
+  // report it as slow if it takes longer than 100 ms
+  if ((t1-t0) > 100000) {
+    fprintf(stderr, "warning: slow build for region (%d,%d); %d+%d triangles in %.4f sec\n", 
+            rgn->origin.x, rgn->origin.y,
+            m->count, tm ? tm->count : 0, 
+            (t1-t0) * 1.0e-6);
+  }
   rgn->picker = makeRegionPicker(rgn);
 
   TerrainSection s;

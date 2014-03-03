@@ -20,6 +20,7 @@
 #include "animus.h"
 #include "skymap.h"
 #include "clientoptions.h"
+#include "overlay.h"
 
 struct UserInterface;
 
@@ -39,11 +40,10 @@ struct ShaderRef {
 struct OverlayWindow {
   long                  ow_showtime;    // 0 for not being shown
   long                  ow_cleartime;
-  SDL_Texture          *ow_content;
-  float                 ow_x0;
-  float                 ow_y0;
-  float                 ow_x1;
-  float                 ow_y1;
+  OverlayImage         *ow_content;
+  // nominal positions in window
+  int                   ow_x;
+  int                   ow_y;
 };
 
 struct Mesh {
@@ -141,8 +141,8 @@ struct UserInterface {
   SDL_Window *status_window;
   SDL_Renderer *status_renderer;
   
-  SDL_Texture *popupTexture;
-  Picture *popupFont;
+  OverlayImage *popupOverlay;
+  Font *popupFont;
   struct OverlayWindow  *toolPopup;
   struct OverlayWindow  *toolPopupSel;
 

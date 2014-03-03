@@ -54,7 +54,7 @@ SpanInfo ClientWorld::getSpanAdjacentByFace(SpanInfo from, int exit_face)
     si.y = from.y - 1;
   }
 
-  si.z = from.z;
+  si.z = from.z + from.span->height;
   si.span = NULL;
   return getSpan(si);
 }
@@ -85,14 +85,18 @@ SpanInfo ClientWorld::getSpanAdjacent(SpanInfo from, float dir)
     goto right;
   }
 
-  si.z = from.z;
+  // we are coming from ON TOP of that span,
+  // so contemplate our z as being at that level
+  si.z = from.z + from.span->height;
   si.span = NULL;
   return getSpan(si);
 }
 
 SpanInfo ClientWorld::getSpan(SpanInfo si)
 {
-  // now find the *top* of that column, starting at the current z
+  // now find the *top* of that column, starting at the current
+  // Z.  Note that Z should be the TOP of the column we're
+  // coming from
   Posn p(si.x & ~(REGION_SIZE-1),
          si.y & ~(REGION_SIZE-1));
 
