@@ -68,7 +68,7 @@ DESTDIR=
 BIN=$(DESTDIR)/bin
 ASSETDIR=$(DESTDIR)
 
-TEXTURES=terrain.png toolsel.png toolbar.png turtle.png galaxy.dat 8x8font.png
+TEXTURES=terrain.png toolsel.png toolbar.png turtle.png galaxy.dat 8x8font.png inputbox.png
 SHADERS=terrain water skybox robot outline
 
 INSTALLED_TEXTURES=$(patsubst %,$(ASSETDIR)/textures/%,$(TEXTURES))
